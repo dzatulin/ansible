@@ -1,0 +1,48 @@
+---
+- include_tasks: kubeconfig.yaml
+
+- name: Login to OCI Helm registry
+  ansible.builtin.command: >
+    helm registry login ghcr.io
+    -u {{ ghcr_username }}
+    -p {{ ghcr_token }}
+  environment:
+    HELM_EXPERIMENTAL_OCI: "1"
+  become: no
+  register: helm_login_result
+  when: 
+    - login_to_oci is defined
+
+- include_tasks: diff.yaml
+  when: diff is defined and diff | bool
+
+- name: Add Helm repository
+  kubernetes.core.helm_repository:
+     name: "{{ helm_release_name }}"
+     repo_url: "{{ helm_repo_url }}"
+  become: no
+  when: 
+    - login_to_oci is not defined
+    - diff != true
+
+- name: Deploy Helm chart
+  kubernetes.core.helm:
+    name: "{{ helm_release_name }}"
+    chart_ref: "{{ helm_chart_url }}"
+    release_namespace: "{{ helm_namespace }}"
+    values_files:
+      - "{{ helm_values_file }}"
+    create_namespace: true
+    chart_version: "{{ helm_chart_version }}"
+  register: helm_result
+  when: diff != true
+
+- name: Display Helm result
+  debug:
+    var: helm_result
+  when: diff is not defined
+
+- name: Clean up temporary kubeconfig
+  file:
+    path: "~/kubeconfig-{{ cluster_name }}"
+    state: absent

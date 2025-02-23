@@ -1,0 +1,13 @@
+- name: Run Helm diff
+  command: >
+    helm diff upgrade {{ helm_release_name }} {{ helm_chart_url }} 
+    --namespace {{ helm_namespace }} 
+    -f {{ helm_values_file }} 
+    --allow-unreleased
+  register: helm_diff_output
+  ignore_errors: true
+
+- name: Display Helm diff output
+  debug:
+    msg: "{{ helm_diff_output.stdout }}"
+  ignore_errors: true
