@@ -1,0 +1,36 @@
+---
+- name: Include env variables
+  include_vars: "{{ env }}.yaml"
+
+- name: Set list of directories
+  set_fact:
+    list_of_directories: "{{ lookup('pipe', 'find {{dashboards_dir}} -type d -mindepth 1 -maxdepth 1 -exec basename {} \\;').split('\n') }}"
+
+- name: Create Grafana folders
+  become: false
+  community.grafana.grafana_folder:
+    name: "{{ item }}"
+    state: present
+    grafana_url: "{{ grafana_api }}"
+    grafana_api_key: "{{ api_token }}"
+  loop: "{{ list_of_directories }}"
+
+- name: Get lists of files JSON in folder dashboards
+  become: false
+  find:
+    paths: "{{ dashboards_dir }}"
+    patterns: "*.json"
+    recurse: yes
+  register: loki_files
+
+- name: Import Grafana dashboards
+  become: false
+  community.grafana.grafana_dashboard:
+    grafana_url: "{{ grafana_api }}"
+    grafana_api_key: "{{ api_token }}"
+    folder: "{{ item.path | regex_replace('.*/(\\w+)/.*', '\\1') }}"
+    state: present
+    commit_message: Create by ansible
+    overwrite: true
+    path: "{{ item.path }}"
+  with_items: "{{ loki_files.files }}"
